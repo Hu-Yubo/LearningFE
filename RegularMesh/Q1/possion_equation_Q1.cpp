@@ -61,7 +61,7 @@ int Q1_ele2dof(int n, int j, int i, int k)
     return idx;
 }
 
-///每个自由度对应的顶点坐标
+/// 每个自由度对应的顶点坐标
 AFEPack::Point<2> Q1_ele2vtx(int n, int j, int i, int k)
 {
     double x0 = 0.0;
@@ -106,14 +106,45 @@ int main(int argc, char* argv[])
     BasisFunctionAdmin<double, 2, 2> rectangle_basis_function(rectangle_template_dof);
     rectangle_basis_function.readData("rectangle.1.bas_fun");
     TemplateElement<double, 2, 2> template_element;
-    ///模板单元初始化
+    /// 模板单元初始化
     template_element.reinit(rectangle_template_geometry,
 	                    rectangle_template_dof,
 	                    rectangle_coord_transform,
 	                    rectangle_basis_function);
     double volume = template_element.volume();
-    ///取 4 次代数精度。
+    /// 取 4 次代数精度。
     const QuadratureInfo<2>& quad_info = template_element.findQuadratureInfo(4);
+    /// 积分点个数
+    int n_quadrature_point = quad_info.n_quadraturePoint();
+    /// 积分点
+    std::vector< AFEPack::Point<2> > q_point = quad_info.quadraturePoint();
+    int n_element_dof = template_element.n_dof();
+    /// 基函数个数
+    int n_bas = rectangle_basis_function.size();
+
+    /// 产生一个具体单元顶点的缓存。一个矩形的 4 个顶点。这里其实是这
+    /// 四个顶点正好是 Q1 单元的 4 个单元内自由度。gv 表示全局的矩形坐
+    /// 标，就是在物理计算区域内一个网格的顶点坐标；而 lv 表示局部的矩
+    /// 形坐标，即参考单元的坐标。沿用了 AFEPack 的配置，是固定的 [-1,
+    /// -1]-[-1, 1]-[1, 1]-[-1, 1]。
+    
+    /// 全局点
+    std::vector<AFEPack::Point<2> > gv(4);
+    /// 观察一下模板单元中的自由度，基函数和基函数在具体积分点的取值情况，可从模板单元中读取到。
+    TemplateGeometry<2> &geo = template_element.geometry();
+    const std::vector<AFEPack::Point<2> > &lv = geo.vertexArray();
+    int n_vtx = geo.n_geometry(0);
+    /// 设置实际的计算矩形边界。
+    double x0 = 0.0;
+    double x1 = 1.0;
+    double y0 = 0.0;
+    double y1 = 1.0;
+    /// 设置剖分段数。
+    int n = 20;
+    /// 自由度总数
+    int dim = (n + 1) * (n + 1);
+
+    Vector<double> rhs(dim);
 }
 
     
