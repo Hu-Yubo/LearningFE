@@ -143,8 +143,42 @@ int main(int argc, char* argv[])
     int n = 20;
     /// 自由度总数
     int dim = (n + 1) * (n + 1);
-
+    /// rhs是什么意思？
     Vector<double> rhs(dim);
+    /// 每行对应的非零元个数 NoZeroPerRow，每行最多9个非零元。
+    std::vector<unsigned int> NoZeroPerRow(dim, 9);
+    /// 角点自由度所在行只有 4 个非零元。
+    NoZeroPerRow[0] = 4;
+    NoZeroPerRow[dim - 1] = 4;
+    NoZeroPerRow[n] = 4;
+    NoZeroPerRow[dim - n - 1] = 4;
+    /// 非角点的边界自由度只有 6 个非零元。
+    for (int i = 1; i < n; i++)
+    {
+	NoZeroPerRow[i] = 6;
+	NoZeroPerRow[dim - 1 - i] = 6;
+	NoZeroPerRow[i * (n + 1)] = 6;
+	NoZeroPerRow[i * n + i + n] = 6;
+    }
+    /// 建立稀疏矩阵模板。
+    SparsityPattern sp_stiff_matrix(dim, NoZeroPerRow);
+    /// 填充非零元素对应的行索引和列索引，遍历顺序按照自由度编号的顺序。
+    for (int j = 0; j < n; j++)
+    {
+	for (int i = 0; i < n; i++)
+	{
+	    int n_dof = template_element.n_dof();
+	    for (int dof1 = 0; dof1 < n_dof; dof1++)
+		for (int dof2 = 0; dof2 < n_dof; dof2++)
+		{
+		    sp_stiff_matrix.add(Q1_ele2dof(n, j, i, dof1),
+					Q1_ele2dof(n, i, j, dof2));
+		}
+	}
+    }
+    /// 稀疏矩阵生成
+    sp_stiff_matrix,compress();
+    
 }
 
     
