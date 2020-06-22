@@ -176,9 +176,38 @@ int main(int argc, char* argv[])
 		}
 	}
     }
-    /// 稀疏矩阵生成
+    /// 稀疏矩阵模板生成。
     sp_stiff_matrix,compress();
-    
+    /// 刚度矩阵初始化。
+    SparseMatrix<double> stiff_mat(sp_stiff_matrix);
+    /// 生成节点，单元，刚度矩阵和右端项。
+    double h = (x1 - x0) / n;
+    for (int j = 0; j < n; j++)
+	for (int i = 0; i < n; i++)
+	{
+	    /// 实际单元顶点坐标。
+	    for (int k = 0; k < n_vtx; k++)
+		gv[k] = Q1_ele2vtx(n ,j, i, k);
+
+	    /// 积分
+	    for (int l = 0; l < n_quadrature_point; l++)
+	    {
+		/// 积分点全局坐标。
+		auto point = rectangle_coord_transform.local_to_global(q_point, lv, gv);
+		/// 积分点权重，Jacobi变换系数。
+		double Jxy = quad_info.weight(l) * rectangle_coord_transform.local_to_global_jacobian(q_point[l], lv, gv) * volume;
+
+		for (int base1 = 0; base1 < template_element.n_dof(); base1++)
+		    for (int base2 = 0; base2 < template_element.n_dof(); base2++)
+		    {
+			stiff_mat.add(Q1_ele2dof(n, j, i, base1),
+			              Q1_ele2dof(n, j, i, base2),
+			              Jxy * innerProduct(rectangle_basis_function[base1].gradient(point[l], gv), rectangle_basis_function[base2].gradient(point[l], gv)));
+			/// 右端项
+			rhs(Q1_ele2dof(n, j, i, base1)) += Jxy * f(point[l]) * rectangle_basis_function[base1].value(point[l], gv);
+		    }
+	    }
+	}
 }
 
     
