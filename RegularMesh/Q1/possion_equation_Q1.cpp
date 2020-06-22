@@ -39,7 +39,7 @@ double f(const double *p)
     return 2 * PI * PI * u(p);
 }
 
-/// 从 j 行 i 列，每一列 n 个网格的 Q1 剖分中映射 (i,j) 单元的第 k 个自由度编号
+/// 从 j 行 i 列，每一列 n 个网格的 Q1 剖分中映射 (i,j) 单元的第 k 个自由度编号。
 int Q1_ele2dof(int n, int j, int i, int k)
 {
     int idx = -1;
@@ -50,10 +50,13 @@ int Q1_ele2dof(int n, int j, int i, int k)
 	break;
     case 1:
 	idx = j * (n + 1) + i + 1;
+	break;
     case 2:
 	idx = (j + 1) * (n + 1) + i + 1;
+	break;
     case 3:
 	idx = (j + 1) * (n + 1) + i;
+	break;
     default:
 	std::cerr << "Dof. no. error!" << std::endl;
 	exit(-1);
@@ -86,6 +89,7 @@ AFEPack::Point<2> Q1_ele2vtx(int n, int j, int i, int k)
     case 3:
 	pnt[0] = ((n - i) * x0 + i * x1) / n;
 	pnt[1] = ((n - j - 1) * y0 + (j + 1) * y1) / n;
+	break;
     default:
 	std::cerr << "Element vertex no. error!" << std::endl;
 	exit(-1);
@@ -97,7 +101,7 @@ int main(int argc, char* argv[])
 {
     /// 从 AFEPack 中读入 Q1 模板单元格信息，基函数信息和坐标变换信息。
     TemplateGeometry<2> rectangle_template_geometry;
-    rectangle_template_geometry.readData("rectangle.tmp.geo");
+    rectangle_template_geometry.readData("rectangle.tmp_geo");
     CoordTransform<2, 2> rectangle_coord_transform;
     rectangle_coord_transform.readData("rectangle.crd_trs");
     TemplateDOF<2> rectangle_template_dof(rectangle_template_geometry);
@@ -172,12 +176,12 @@ int main(int argc, char* argv[])
 		for (int dof2 = 0; dof2 < n_dof; dof2++)
 		{
 		    sp_stiff_matrix.add(Q1_ele2dof(n, j, i, dof1),
-					Q1_ele2dof(n, i, j, dof2));
+					Q1_ele2dof(n, j, i, dof2));
 		}
 	}
     }
     /// 稀疏矩阵模板生成。
-    sp_stiff_matrix,compress();
+    sp_stiff_matrix.compress();
     /// 刚度矩阵初始化。
     SparseMatrix<double> stiff_mat(sp_stiff_matrix);
     /// 生成节点，单元，刚度矩阵和右端项。
@@ -208,6 +212,68 @@ int main(int argc, char* argv[])
 		    }
 	    }
 	}
+    /// 边界条件处理。
+    for (int index = 0; index < dim; index++)
+    {
+	/// 用非零元个数判断边界。
+	if (NoZeroPerRow[index] == 4 || NoZeroPerRow[index] == 6)
+	{
+	    /// 首先计算该节点的实际坐标。
+	    int x_num = index % (n + 1);
+	    int y_num = index / (n + 1);
+	    double x = x_num * h;
+	    double y = y_num * h;
+	    SparseMatrix<double>::iterator row_iterator = stiff_mat.begin(index);
+	    SparseMatrix<double>::iterator row_end = stiff_mat.end(index);
+	    double diag = row_iterator->value();
+	    AFEPack::Point<2> bnd_point;
+	    bnd_point[0] = x;
+	    bnd_point[1] = y;
+	    double bnd_value = u(bnd_point);
+	    for (++row_iterator; row_iterator != row_end; ++row_iterator)
+	    {
+		row_iterator->value() = 0.0;
+		int k = row_iterator->column();
+		SparseMatrix<double>::iterator col_iterator = stiff_mat.begin(k);
+		SparseMatrix<double>::iterator col_end = stiff_mat.end(k);
+		for (++col_iterator; col_iterator != col_end; ++col_iterator)
+		    if (col_iterator->column() == index)
+			break;
+		if (col_iterator == col_end)
+		{
+		    std::cerr << "Error!" << std::endl;
+		    exit(-1);
+		}
+		rhs(k) -= col_iterator->value() * bnd_value;
+		col_iterator->value() = 0.0;
+	    }
+	}
+    }
+
+    /// 用代数多重网格 AMG 计算线性方程。
+    AMGSolver solver(stiff_mat);
+    /// 这里设置线性求解器的收敛判定为机器 epsilon 乘以矩阵的阶数，也就是自由度总数。这个参数基本上是理论可以达到的极限。
+    Vector<double> solution(dim);
+    double tol = std::numeric_limits<double>::epsilon() * dim;
+    solver.solve(solution, rhs, tol, 10000);
+    std::ofstream fs;
+    /// 输出到 output.m
+    fs.open("output.m");
+    fs << "x = 0:1/" << n << ":1;" << std::endl;
+    fs << "y = 0:1/" << n << ":1;" << std::endl;
+    fs << "[X, Y] = meshgrid(x, y);" << std::endl;
+    fs << "u = [";
+    for (int j = 0; j < n + 1; j++)
+    {
+	for (int i = 0; i < n + 1; i++)
+	{
+	    fs << solution[i + (n + 1) * j] << " , ";
+	}
+	fs << ";" << std::endl;
+    }
+    fs << "];" << std::endl;
+    fs << "surf(x, y, u);" << std::endl;
+    return 0;
 }
 
     
