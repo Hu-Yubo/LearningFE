@@ -1,11 +1,14 @@
 /**
- * @file possion_equation_Q1.cpp
- * @author 
- * @date 
+ * @file   possion_equation_Q1.cpp
+ * @author StudyBo <studybo@ubuntu18-04>
+ * @date   Tue Jun 23 21:07:49 2020
  * 
- * @brief 使用AFEpack里的函数，在结构化网格下实现二维一次元Possion方程计算
- *
+ * @brief  Solve 2D possion equation, Q1 case.
+ * 
+ * 
  */
+
+
 #include <iostream>
 #include <cmath>
 
