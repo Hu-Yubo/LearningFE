@@ -7,3 +7,86 @@
  * 
  * 
  */
+
+#include <iostream>
+#include <cmath>
+
+#include <AFEPack/AMGSolver.h>
+#include <AFEPack/Geometry.h>
+#include <AFEPack/TemplateElement.h>
+#include <AFEPack/FEMSpace.h>
+#include <AFEPack/Operator.h>
+#include <AFEPack/Functional.h>
+#include <AFEPack/EasyMesh.h>
+#include <AFEPack/SparseMatrixTool.h>
+
+#include <lac/sparse_matrix.h>
+#include <lac/sparsity_pattern.h>
+#include <lac/sparse_ilu.h>
+#include <lac/vector.h>
+#include <lac/full_matrix.h>
+#include <lac/solver_cg.h>
+#include <lac/sparse_mic.h>
+#include <lac/sparse_decomposition.h>
+
+#define PI (4.0 * atan(1.0))
+
+double u (const double* p)
+{
+    return 0;
+}
+
+double f(const double* p)
+{
+    return 2;
+}
+
+/// 用来储存边界自由度编号的向量。
+std::vector<unsigned int> BndDOF;
+/// 从左到右，对 n 个区间单元中的第 i 个中的两个自由度进行编号， 0->1。
+int eledof_1D(int i, int k)
+{
+    return (i + k);
+}
+/// n 个单元中第 i 个区间单元中两个节点的坐标
+AFEPack::Point<1> elevtx_1D(int n, int i, int k)
+{
+    double x0 = 0.0;
+    double x1 = 1.0;
+    AFEPack::Point<1> pnt;
+    double h = (x1 - x0) / n;
+    pnt[0] = (i + k) * h;
+    return pnt;
+}
+/// 存入边界自由度。
+int Record_BndDOF(int n)
+{
+    BndDOF.push_back(0);
+    BndDOF.push_back(n + 1);
+    return 0;
+}
+
+int main(int argc, char* argv[])
+{
+    /// 从 AFEPack 中读入 1D 模板单元格信息，基函数信息和坐标变换信息。
+    TemplateGeometry<1> interval_template_geometry;
+    interval_template_geometry.readData("interval.tmp_geo");
+    CoordTransform<1, 1> interval_coord_transform;
+    interval_coord_transform.readData("interval.crd_trs");
+    TemplateDOF<1> interval_template_dof(interval_template_geometry);
+    /// 一次元。
+    interval_template_dof.readData("interval.1.tmp_dof");
+    BasisFunctionAdmin<double, 1, 1> interval_basis_function(interval_template_dof);
+    interval_basis_function.readData("interval.1.bas_fun");
+    TemplateElement<double, 1, 1> template_element;
+    ///模板单元初始化。
+    template_element.reinit(interval_template_geometry,
+	                    interval_template_dof,
+	                    interval_coord_transform,
+	                    interval_basis_function);
+    double volume = template_element.volume();
+
+}
+
+    
+    
