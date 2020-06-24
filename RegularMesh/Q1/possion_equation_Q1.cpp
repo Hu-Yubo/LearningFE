@@ -127,7 +127,7 @@ int main(int argc, char* argv[])
     std::vector< AFEPack::Point<2> > q_point = quad_info.quadraturePoint();
     int n_element_dof = template_element.n_dof();
     /// 基函数个数
-    int n_bas = rectangle_basis_function.size();
+    int n_bas = template_element.basisFunction().size();
 
     /// 产生一个具体单元顶点的缓存。一个矩形的 4 个顶点。这里其实是这
     /// 四个顶点正好是 Q1 单元的 4 个单元内自由度。gv 表示全局的矩形坐
@@ -150,7 +150,7 @@ int main(int argc, char* argv[])
     int n = 20;
     /// 自由度总数
     int dim = (n + 1) * (n + 1);
-    /// rhs是什么意思？
+    /// rhs是右端项
     Vector<double> rhs(dim);
     /// 每行对应的非零元个数 NoZeroPerRow，每行最多9个非零元。
     std::vector<unsigned int> NoZeroPerRow(dim, 9);
