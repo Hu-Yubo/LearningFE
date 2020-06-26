@@ -42,7 +42,7 @@ double f(const double *p)
     return 2 * PI * PI * u(p);
 }
 
-/// 从 j 行 i 列，每一列 n 个网格的 Q1 剖分中映射 (i,j) 单元的第 k 个自由度编号。
+/// 从 j 行 i 列，每一行 n 个网格的 Q1 剖分中映射 (i,j) 单元的第 k 个自由度编号。
 int Q1_ele2dof(int n, int j, int i, int k)
 {
     int idx = -1;
