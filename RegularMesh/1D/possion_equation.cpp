@@ -62,7 +62,7 @@ AFEPack::Point<1> elevtx_1D(int n, int i, int k)
 int Record_BndDOF(int n)
 {
     BndDOF.push_back(0);
-    BndDOF.push_back(n + 1);
+    BndDOF.push_back(n);
     return 0;
 }
 
@@ -119,8 +119,98 @@ int main(int argc, char* argv[])
     Vector<double> rhs(dim);
     /// 储存边界自由度。
     Record_BndDOF(n);
-    
-    
+    /// 每行的非零元个数，每行最多3个非零元。
+    std::vector<unsigned int> NoZeroPerRow(dim, 3);
+    /// 区间端点所在行只有两个非零元。
+    NoZeroPerRow[0] = 2;
+    NoZeroPerRow[n] = 2;
+    /// 建立稀疏矩阵模板。
+    SparsityPattern sp_stiff_matrix(dim, NoZeroPerRow);
+    /// 填充非零元素对应的行索引和列索引。
+    int n_dof = template_element.n_dof();
+    for (int i = 0; i < n; i++)
+    {
+	for (int dof1 = 0; dof1 < n_dof; dof1++)
+	    for (int dof2 = 0; dof2 < n_dof; dof2++)
+		sp_stiff_matrix.add(eledof_1D(i, dof1), eledof_1D(i, dof2));
+    }
+    /// 稀疏矩阵模板生成。
+    sp_stiff_matrix.compress();
+    /// 刚度矩阵初始化。
+    SparseMatrix<double> stiff_mat(sp_stiff_matrix);
+    /// 生成节点，单元，刚度矩阵和右端项。
+    double h = (x1 - x0) / n;
+    for (int i = 0; i < n; i++)
+    {
+	/// 实际单元顶点坐标
+	for (int k = 0; k < n_vtx; k++)
+	    gv[k] = elevtx_1D(n, i, k);
+
+	/// 积分
+	for (int l = 0; l < n_quadrature_point; l++)
+	{
+	    /// 积分点全局坐标
+	    auto point = interval_coord_transform.local_to_global(q_point, lv, gv);
+	    /// 积分点权重， Jacobi 变换系数。
+	    double Jxy = quad_info.weight(l) * interval_coord_transform.local_to_global_jacobian(q_point[l], lv, gv) * volume;
+	    
+	    for (int base1 = 0; base1 < n_dof; base1++)
+	    {
+		for (int base2 = 0; base2 < n_dof; base2++)
+		    stiff_mat.add(eledof_1D(i, base1), eledof_1D(i, base2),
+				  Jxy * innerProduct(interval_basis_function[base1].gradient(point[l], gv), interval_basis_function[base2].gradient(point[l], gv)));
+		/// 右端项
+		rhs(eledof_1D(i, base1)) += Jxy * f(point[l]) * interval_basis_function[base1].value(point[l], gv);
+	    }
+	}
+    }
+    /// 边界条件处理
+    for (int i = 0; i < BndDOF.size(); i++)
+    {
+	int bnd_dof = BndDOF[i];
+	double x = x0 + h * bnd_dof;
+	SparseMatrix<double>::iterator row_iterator = stiff_mat.begin(bnd_dof);
+	double diag = row_iterator->value();
+	AFEPack::Point<1> bnd_point;
+	bnd_point[0] = x;
+	double bnd_value = u(bnd_point);
+	rhs(bnd_dof) = diag * bnd_value;
+	for (++row_iterator; row_iterator != stiff_mat.end(bnd_dof); ++row_iterator)
+	{
+	    row_iterator->value() = 0.0;
+	    int k = row_iterator->column();
+	    SparseMatrix<double>::iterator col_iterator = stiff_mat.begin(k);
+	    SparseMatrix<double>::iterator col_end = stiff_mat.end(k);
+	    for (++col_iterator; col_iterator != col_end; ++col_iterator)
+		if (col_iterator->column() == bnd_dof)
+		    break;
+	    if (col_iterator == col_end)
+	    {
+		std::cerr << "Error!" << std::endl;
+		exit(-1);
+	    }
+	    rhs(k) -= col_iterator->value() * bnd_value;
+	    col_iterator->value() = 0.0;
+	}
+    }
+    /// 用代数多重网格 AMG 计算线性方程。
+    AMGSolver solver(stiff_mat);
+    /// 这里设置线性求解器的收敛判定为机器 epsilon 乘以矩阵的阶数，也就是自由度总数。这个参数基本上是理论可以达到的极限。
+    Vector<double> solution(dim);
+    double tol = std::numeric_limits<double>::epsilon() * dim;
+    solver.solve(solution, rhs, tol, 10000);
+    /// 输出到output.m，用Matlab或Octave运行，得到计算结果。
+    std::ofstream fs;
+    fs.open("output.m");
+    fs << "x = " << x0 << ": 1/" << n << " : " << x1 << ";" << std::endl;
+    fs << "u = [";
+    for (int i = 0; i < dim; i++)
+    {
+	fs << " " << solution[i] << ",";
+    }
+    fs << "];" << std::endl;
+    fs << "plot(x, u);" << std::endl;
+    return 0;   
 }
 
     

@@ -205,14 +205,14 @@ int main(int argc, char* argv[])
 		double Jxy = quad_info.weight(l) * rectangle_coord_transform.local_to_global_jacobian(q_point[l], lv, gv) * volume;
 
 		for (int base1 = 0; base1 < template_element.n_dof(); base1++)
+		{
 		    for (int base2 = 0; base2 < template_element.n_dof(); base2++)
-		    {
 			stiff_mat.add(Q1_ele2dof(n, j, i, base1),
 			              Q1_ele2dof(n, j, i, base2),
 			              Jxy * innerProduct(rectangle_basis_function[base1].gradient(point[l], gv), rectangle_basis_function[base2].gradient(point[l], gv)));
-			/// 右端项
-			rhs(Q1_ele2dof(n, j, i, base1)) += Jxy * f(point[l]) * rectangle_basis_function[base1].value(point[l], gv);
-		    }
+		    /// 右端项
+		    rhs(Q1_ele2dof(n, j, i, base1)) += Jxy * f(point[l]) * rectangle_basis_function[base1].value(point[l], gv);
+		}
 	    }
 	}
     /// 边界条件处理。
@@ -233,6 +233,7 @@ int main(int argc, char* argv[])
 	    bnd_point[0] = x;
 	    bnd_point[1] = y;
 	    double bnd_value = u(bnd_point);
+	    rhs(index) = diag * bnd_value;
 	    for (++row_iterator; row_iterator != row_end; ++row_iterator)
 	    {
 		row_iterator->value() = 0.0;
