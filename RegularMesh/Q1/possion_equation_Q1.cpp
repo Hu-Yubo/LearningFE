@@ -169,7 +169,7 @@ int main(int argc, char* argv[])
     }
     /// 建立稀疏矩阵模板。
     SparsityPattern sp_stiff_matrix(dim, NoZeroPerRow);
-    /// 填充非零元素对应的行索引和列索引，遍历顺序按照自由度编号的顺序。
+    /// 填充非零元素对应的行索引和列索引，遍历顺序按照单元的顺序。
     for (int j = 0; j < n; j++)
     {
 	for (int i = 0; i < n; i++)
@@ -276,7 +276,7 @@ int main(int argc, char* argv[])
 	fs << ";" << std::endl;
     }
     fs << "];" << std::endl;
-    fs << "surf(x, y, u);" << std::endl;
+    fs << "surf(X, Y, u);" << std::endl;
     return 0;
 }
 
