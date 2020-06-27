@@ -41,7 +41,7 @@ std::vector<unsigned int> BndDof;
 
 double u(const double* p)
 {
-    return sin(PI * p[0] * sin(PI * p[1]));
+    return sin(PI * p[0]) * sin(PI * p[1]);
 }
 
 double f(const double* p)
@@ -52,14 +52,14 @@ double f(const double* p)
 /* 如何划分单元格？                     
  * 首先将实际计算区域划分为规则的矩形网格，对于每个矩形网格，
  * 将其第0个和第2个顶点连线，划分为两个三角形，从左至右排序。
- * 2——————3 
+ * 2  ——  3 
  * |     /|    如图左所示，0-3-2, 0-1-3 构成两个 P1 单元片，
  * |    / |    且 0-3-2 编号在前。
  * |   /  |
  * |  /   |
  * | /    |
  * |/     |
- * 0——————1
+ * 0  ——  1
  *
  */
 
@@ -211,7 +211,7 @@ int main(int argc, char* argv[])
     int n_quadrature_point = quad_info.n_quadraturePoint();
     /// 积分点
     std::vector< AFEPack::Point<2> > q_point = quad_info.quadraturePoint();
-    int n_element_dof = template_element.n_dof();
+    int n_dof = template_element.n_dof();
     /// 基函数个数
     int n_bas = template_element.basisFunction().size();
     
@@ -228,11 +228,13 @@ int main(int argc, char* argv[])
     const std::vector<AFEPack::Point<2> > &lv = geo.vertexArray();
     int n_vtx = geo.n_geometry(0);
     /// 设置剖分段数。
-    int n = 20;
+    int n = 50;
     /// 自由度总数
     int dim = (n + 1) * (n + 1);
     /// 右端项
     Vector<double> rhs(dim);
+    /// 记得先储存边界自由度！！！！！！！！
+    Store_BndDof(n);
     /// 稀疏矩阵中每行对应的非零元个数，每行最多 7 个非零元。
     std::vector<unsigned int> NoZeroPerRow(dim, 7);
     /// 非角点的边界自由度所在行有 5 个非零元。
@@ -245,7 +247,6 @@ int main(int argc, char* argv[])
     NoZeroPerRow[dim - n - 1] = 3;
     /// 建立稀疏矩阵模板。
     SparsityPattern sp_stiff_matrix(dim, NoZeroPerRow);
-    int n_dof = template_element.n_dof();
     /// 填充非零元素对应的行索引和列索引，遍历顺序按照单元的顺序。
     for (int j = 0; j < n; j++)
     {
@@ -264,7 +265,7 @@ int main(int argc, char* argv[])
     /// 刚度矩阵初始化。
     SparseMatrix<double> stiff_mat(sp_stiff_matrix);
     /// 生成节点，单元，刚度矩阵和右端项。
-    double h = (xb - xa) / n;
+    // double h = (xb - xa) / n;
     for (int j = 0; j < n; j++)
 	for (int i = 0; i < 2 * n; i++)
 	{
@@ -342,6 +343,19 @@ int main(int argc, char* argv[])
     }
     fs << "];" << std::endl;
     fs << "surf(X, Y, u);" << std::endl;
+
+    /// 计算 L2 误差。
+    double error = 0;
+    for (int dof = 0; dof < dim; dof++)
+    {
+	AFEPack::Point<2> pnt;
+	pnt = Dof_to_vtx(n, dof);
+	double d = (u(pnt) - solution[dof]);
+	error += d * d;
+    }
+    error = std::sqrt(error);
+    std::cerr << "\nL2 error = " << error << ", tol = " << tol << std::endl;
+
     return 0;
 }
     

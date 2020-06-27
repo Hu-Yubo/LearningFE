@@ -32,6 +32,14 @@
 
 #define PI (4.0 * atan(1.0))
 
+/// 实际计算的矩形边界。
+double xa = 0.0;
+double xb = 1.0;
+double ya = 0.0;
+double yb = 1.0;
+/// 用来存放边界自由度编号的向量。
+std::vector<unsigned int> BndDof;
+
 double u(const double *p)
 {
     return sin(PI * p[0]) * sin(PI * p[1]);
@@ -67,36 +75,63 @@ int Q1_ele2dof(int n, int j, int i, int k)
     return idx;
 }
 
-/// 每个自由度对应的顶点坐标
+/// 从 j 行 i 列，每一行 n 个网格的 P1 剖分中映射 (i,j) 单元的第 k 个顶点坐标。
 AFEPack::Point<2> Q1_ele2vtx(int n, int j, int i, int k)
 {
-    double x0 = 0.0;
-    double x1 = 1.0;
-    double y0 = 0.0;
-    double y1 = 1.0;
     AFEPack::Point<2> pnt;
     switch(k)
     {
     case 0:
-	pnt[0] = ((n - i) * x0 + i * x1) / n;
-	pnt[1] = ((n - j) * y0 + j * y1) / n;
+	pnt[0] = ((n - i) * xa + i * xb) / n;
+	pnt[1] = ((n - j) * ya + j * yb) / n;
 	break;
     case 1:
-	pnt[0] = ((n - i - 1) * x0 + (i + 1) * x1) / n;
-	pnt[1] = ((n - j) * y0 + j * y1) / n;
+	pnt[0] = ((n - i - 1) * xa + (i + 1) * xb) / n;
+	pnt[1] = ((n - j) * ya + j * yb) / n;
 	break;
     case 2:
-	pnt[0] = ((n - i - 1) * x0 + (i + 1) * x1) / n;
-	pnt[1] = ((n - j - 1) * y0 + (j + 1) * y1) / n;
+	pnt[0] = ((n - i - 1) * xa + (i + 1) * xb) / n;
+	pnt[1] = ((n - j - 1) * ya + (j + 1) * yb) / n;
 	break;
     case 3:
-	pnt[0] = ((n - i) * x0 + i * x1) / n;
-	pnt[1] = ((n - j - 1) * y0 + (j + 1) * y1) / n;
+	pnt[0] = ((n - i) * xa + i * xb) / n;
+	pnt[1] = ((n - j - 1) * ya + (j + 1) * yb) / n;
 	break;
     default:
 	std::cerr << "Element vertex no. error!" << std::endl;
 	exit(-1);
     }
+    return pnt;
+}
+
+/// 储存所有边界自由度编号。
+int Store_BndDof(int n)
+{
+    for (int i = 0; i < n + 1; i++)
+    {
+	BndDof.push_back(i);
+	BndDof.push_back((n + 1) * (n + 1) - 1 - i);
+    }
+    if (n > 1)
+    {
+	for (int i = 1; i < n; i++ )
+	{
+	    BndDof.push_back(i * (n + 1));
+	    BndDof.push_back(i * (n + 1) + n);
+	}
+    }
+    return 0;
+}
+
+/// 每个编号为 dof 的自由度所对应的节点
+AFEPack::Point<2> Dof_to_vtx(int n, int dof)
+{
+    AFEPack::Point<2> pnt;
+    /// j 行 i 列
+    int j = dof / (n + 1);
+    int i = dof % (n + 1);
+    pnt[0] = i * (xb - xa) / n;
+    pnt[1] = j * (yb - ya) / n;
     return pnt;
 }
 
@@ -125,7 +160,7 @@ int main(int argc, char* argv[])
     int n_quadrature_point = quad_info.n_quadraturePoint();
     /// 积分点
     std::vector< AFEPack::Point<2> > q_point = quad_info.quadraturePoint();
-    int n_element_dof = template_element.n_dof();
+    int n_dof = template_element.n_dof();
     /// 基函数个数
     int n_bas = template_element.basisFunction().size();
 
@@ -141,32 +176,25 @@ int main(int argc, char* argv[])
     TemplateGeometry<2> &geo = template_element.geometry();
     const std::vector<AFEPack::Point<2> > &lv = geo.vertexArray();
     int n_vtx = geo.n_geometry(0);
-    /// 设置实际的计算矩形边界。
-    double x0 = 0.0;
-    double x1 = 1.0;
-    double y0 = 0.0;
-    double y1 = 1.0;
     /// 设置剖分段数。
-    int n = 20;
+    int n = 50;
     /// 自由度总数
     int dim = (n + 1) * (n + 1);
     /// rhs是右端项
     Vector<double> rhs(dim);
+    /// 记得先储存边界自由度！！！！！！！！
+    Store_BndDof(n);
     /// 每行对应的非零元个数 NoZeroPerRow，每行最多9个非零元。
     std::vector<unsigned int> NoZeroPerRow(dim, 9);
+    /// 非角点的边界自由度只有 6 个非零元。
+    for (int i = 0; i < BndDof.size(); i++)
+	NoZeroPerRow[BndDof[i]] = 6;
     /// 角点自由度所在行只有 4 个非零元。
     NoZeroPerRow[0] = 4;
     NoZeroPerRow[dim - 1] = 4;
     NoZeroPerRow[n] = 4;
     NoZeroPerRow[dim - n - 1] = 4;
-    /// 非角点的边界自由度只有 6 个非零元。
-    for (int i = 1; i < n; i++)
-    {
-	NoZeroPerRow[i] = 6;
-	NoZeroPerRow[dim - 1 - i] = 6;
-	NoZeroPerRow[i * (n + 1)] = 6;
-	NoZeroPerRow[i * n + i + n] = 6;
-    }
+
     /// 建立稀疏矩阵模板。
     SparsityPattern sp_stiff_matrix(dim, NoZeroPerRow);
     /// 填充非零元素对应的行索引和列索引，遍历顺序按照单元的顺序。
@@ -174,7 +202,6 @@ int main(int argc, char* argv[])
     {
 	for (int i = 0; i < n; i++)
 	{
-	    int n_dof = template_element.n_dof();
 	    for (int dof1 = 0; dof1 < n_dof; dof1++)
 		for (int dof2 = 0; dof2 < n_dof; dof2++)
 		{
@@ -188,7 +215,7 @@ int main(int argc, char* argv[])
     /// 刚度矩阵初始化。
     SparseMatrix<double> stiff_mat(sp_stiff_matrix);
     /// 生成节点，单元，刚度矩阵和右端项。
-    double h = (x1 - x0) / n;
+    // double h = (xb - xa) / n;
     for (int j = 0; j < n; j++)
 	for (int i = 0; i < n; i++)
 	{
@@ -216,41 +243,32 @@ int main(int argc, char* argv[])
 	    }
 	}
     /// 边界条件处理。
-    for (int index = 0; index < dim; index++)
+    for (int i = 0; i < BndDof.size(); i++)
     {
-	/// 用非零元个数判断边界。
-	if (NoZeroPerRow[index] == 4 || NoZeroPerRow[index] == 6)
+	int index = BndDof[i];
+	SparseMatrix<double>::iterator row_iterator = stiff_mat.begin(index);
+	SparseMatrix<double>::iterator row_end = stiff_mat.end(index);
+	double diag = row_iterator->value();
+	AFEPack::Point<2> bnd_point;
+	bnd_point = Dof_to_vtx(n, index);
+	double bnd_value = u(bnd_point);
+	rhs(index) = diag * bnd_value;
+	for (++row_iterator; row_iterator != row_end; ++row_iterator)
 	{
-	    /// 首先计算该节点的实际坐标。
-	    int x_num = index % (n + 1);
-	    int y_num = index / (n + 1);
-	    double x = x_num * h;
-	    double y = y_num * h;
-	    SparseMatrix<double>::iterator row_iterator = stiff_mat.begin(index);
-	    SparseMatrix<double>::iterator row_end = stiff_mat.end(index);
-	    double diag = row_iterator->value();
-	    AFEPack::Point<2> bnd_point;
-	    bnd_point[0] = x;
-	    bnd_point[1] = y;
-	    double bnd_value = u(bnd_point);
-	    rhs(index) = diag * bnd_value;
-	    for (++row_iterator; row_iterator != row_end; ++row_iterator)
+	    row_iterator->value() = 0.0;
+	    int k = row_iterator->column();
+	    SparseMatrix<double>::iterator col_iterator = stiff_mat.begin(k);
+	    SparseMatrix<double>::iterator col_end = stiff_mat.end(k);
+	    for (++col_iterator; col_iterator != col_end; ++col_iterator)
+		if (col_iterator->column() == index)
+		    break;
+	    if (col_iterator == col_end)
 	    {
-		row_iterator->value() = 0.0;
-		int k = row_iterator->column();
-		SparseMatrix<double>::iterator col_iterator = stiff_mat.begin(k);
-		SparseMatrix<double>::iterator col_end = stiff_mat.end(k);
-		for (++col_iterator; col_iterator != col_end; ++col_iterator)
-		    if (col_iterator->column() == index)
-			break;
-		if (col_iterator == col_end)
-		{
-		    std::cerr << "Error!" << std::endl;
-		    exit(-1);
-		}
-		rhs(k) -= col_iterator->value() * bnd_value;
-		col_iterator->value() = 0.0;
+		std::cerr << "Error!" << std::endl;
+		exit(-1);
 	    }
+	    rhs(k) -= col_iterator->value() * bnd_value;
+	    col_iterator->value() = 0.0;
 	}
     }
 
@@ -263,8 +281,8 @@ int main(int argc, char* argv[])
     std::ofstream fs;
     /// 输出到 output.m
     fs.open("output.m");
-    fs << "x = 0:1/" << n << ":1;" << std::endl;
-    fs << "y = 0:1/" << n << ":1;" << std::endl;
+    fs << "x = " << xa << ":" << xb - xa << "/" << n << ":" << xb << ";" << std::endl;
+    fs << "y = " << ya << ":" << yb - ya << "/" << n << ":" << yb << ";" << std::endl;
     fs << "[X, Y] = meshgrid(x, y);" << std::endl;
     fs << "u = [";
     for (int j = 0; j < n + 1; j++)
@@ -277,6 +295,19 @@ int main(int argc, char* argv[])
     }
     fs << "];" << std::endl;
     fs << "surf(X, Y, u);" << std::endl;
+
+     /// 计算 L2 误差。
+    double error = 0;
+    for (int dof = 0; dof < dim; dof++)
+    {
+	AFEPack::Point<2> pnt;
+	pnt = Dof_to_vtx(n, dof);
+	double d = (u(pnt) - solution[dof]);
+	error += d * d;
+    }
+    error = std::sqrt(error);
+    std::cerr << "\nL2 error = " << error << ", tol = " << tol << std::endl;
+    
     return 0;
 }
 
