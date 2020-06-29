@@ -53,7 +53,7 @@ double f(const double* p)
  * 首先将实际计算区域划分为规则的矩形网格，对于每个矩形网格，
  * 将其第0个和第2个顶点连线，划分为两个三角形，从左至右排序。
  * 2  ——  3 
- * |     /|    如图左所示，0-3-2, 0-1-3 构成两个 P1 单元片，
+ * |     /|    如图左所示，0-3-2, 0-1-3 构成两个 P2 单元片，
  * |    / |    且 0-3-2 编号在前。
  * |   /  |
  * |  /   |
@@ -63,7 +63,7 @@ double f(const double* p)
  *
  */
 
-/// 从 j 行 i 列，每一行 2n 个网格的 P1 剖分中映射 (i,j) 单元的第 k 个自由度编号。
+/// 从 j 行 i 列，每一行 2n 个网格的 P2 剖分中映射 (i,j) 单元的第 k 个自由度编号。
 int P2_ele2dof(int n, int j, int i, int k)
 {
     int dof = -1;
@@ -136,7 +136,7 @@ AFEPack::Point<2> Dof_to_vtx(int n, int dof)
     return pnt;
 }
 
-/// 从 j 行 i 列，每一行 2n 个网格的 P1 剖分中映射 (i,j) 单元的第 k 个顶点坐标。
+/// 从 j 行 i 列，每一行 2n 个网格的 P2 剖分中映射 (i,j) 单元的第 k 个顶点坐标。
 AFEPack::Point<2> P2_ele2vtx(int n, int j, int i, int k)
 {
     AFEPack::Point<2> pnt;
@@ -166,7 +166,7 @@ int Store_BndDof(int n)
 
 int main(int argc, char* argv[])
 {
-    /// 从 AFEPack 中读入 P1 模板单元格信息，基函数信息和坐标变换信息。
+    /// 从 AFEPack 中读入 P2 模板单元格信息，基函数信息和坐标变换信息。
     TemplateGeometry<2> triangle_template_geometry;
     triangle_template_geometry.readData("triangle.tmp_geo");
     CoordTransform<2, 2> triangle_coord_transform;
@@ -214,7 +214,7 @@ int main(int argc, char* argv[])
     /// 记得先储存边界自由度！！！！！！！！
     Store_BndDof(n);
     /// 稀疏矩阵中每行对应的非零元个数，大部分非零元个数为 9。
-    std::vector<unsigned int> NoZeroPerRow(dim, 9);
+    std::vector<unsigned int> NoZeroPerRow(dim, 19);
     /// 利用对称性遍历一半的非零元个数。
     for (int dof = 0; dof <= dim / 2; dof++)
     {
@@ -244,7 +244,7 @@ int main(int argc, char* argv[])
 		NoZeroPerRow[dof] = 6;
 	}
 	NoZeroPerRow[dim - 1 - dof] = NoZeroPerRow[dof];
-    }
+	}
     /// 建立稀疏矩阵模板。
     SparsityPattern sp_stiff_matrix(dim, NoZeroPerRow);
     /// 填充非零元素对应的行索引和列索引，遍历顺序按照单元的顺序。
