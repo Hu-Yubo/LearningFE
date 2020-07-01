@@ -214,7 +214,7 @@ int main(int argc, char* argv[])
     /// 记得先储存边界自由度！！！！！！！！
     Store_BndDof(n);
     /// 稀疏矩阵中每行对应的非零元个数，大部分非零元个数为 9。
-    std::vector<unsigned int> NoZeroPerRow(dim, 19);
+    std::vector<unsigned int> NoZeroPerRow(dim, 9);
     /// 利用对称性遍历一半的非零元个数。
     for (int dof = 0; dof <= dim / 2; dof++)
     {
@@ -290,7 +290,7 @@ int main(int argc, char* argv[])
 		}
 	    }
 	}
-     /// 处理边界条件
+    /// 处理边界条件
     for (int i = 0; i < BndDof.size(); i++)
     {
 	int index = BndDof[i];

@@ -174,7 +174,7 @@ int main(int argc, char* argv[])
     /// 全局点
     std::vector<AFEPack::Point<2> > gv(n_vtx);
     /// 设置剖分段数。
-    int n = 3;
+    int n = 20;
     /// 自由度总数
     int dim = (2 * n + 1) * (2 * n + 1);
     /// 右端项
@@ -182,7 +182,7 @@ int main(int argc, char* argv[])
     /// 记得先储存边界自由度！！！！！！！！
     Store_BndDof(n);
     /// 稀疏矩阵中每行对应的非零元个数，非零元个数最多为 25。
-    std::vector<unsigned int> NoZeroPerRow(dim, 15);
+    std::vector<unsigned int> NoZeroPerRow(dim, 25);
     /// 听取了 LSJ 的建议，不需要确定具体的非零元个数，直接填充索引。
     /// 建立稀疏矩阵模板。
     SparsityPattern sp_stiff_matrix(dim, NoZeroPerRow);
