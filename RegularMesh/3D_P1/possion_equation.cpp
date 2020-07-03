@@ -49,7 +49,7 @@ double u(const double* p)
 
 double f(const double* p)
 {
-    return 2 * PI * PI * u(p);
+    return 3 * PI * PI * u(p);
 }
 
 /* 如何划分单元格？                     
@@ -364,6 +364,18 @@ int main(int argc, char* argv[])
     Vector<double> solution(dim);
     double tol = std::numeric_limits<double>::epsilon() * dim;
     solver.solve(solution, rhs, tol, 10000);
+
+    /// 计算 L2 误差。
+    double error = 0;
+    for (int dof = 0; dof < dim; dof++)
+    {
+	AFEPack::Point<3> pnt;
+	pnt = Dof_to_vtx(n, dof);
+	double d = (u(pnt) - solution[dof]);
+	error += d * d;
+    }
+    error = std::sqrt(error);
+    std::cerr << "\nL2 error = " << error << ", tol = " << tol << std::endl;
     
     return 0;
 }
