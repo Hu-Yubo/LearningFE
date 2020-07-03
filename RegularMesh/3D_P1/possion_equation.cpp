@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 
 #include <AFEPack/AMGSolver.h>
 #include <AFEPack/Geometry.h>
@@ -135,6 +136,7 @@ int P1_ele3dof(int n, int k, int j, int i, int m)
 	    std::cerr << "Dof. no. error!" << std::endl;
 	    exit(-1);
 	}
+	break;
     case 3:  /// 2-5-6-7 型单元
 	switch (m)
 	{
@@ -154,6 +156,7 @@ int P1_ele3dof(int n, int k, int j, int i, int m)
 	    std::cerr << "Dof. no. error!" << std::endl;
 	    exit(-1);
 	}
+	break;
     case 4:  /// 0-5-2-7 型单元
 	switch (m)
 	{
@@ -234,12 +237,134 @@ int Store_BndDof(int n)
 
 int main(int argc, char* argv[])
 {
-    int n = 2;
+    /// 从 AFEPack 中读入 3D_P1 模板单元格信息，基函数信息和坐标变换信息。
+    TemplateGeometry<3> tetrahedron_template_geometry;
+    tetrahedron_template_geometry.readData("tetrahedron.tmp_geo");
+    CoordTransform<3, 3> tetrahedron_coord_transform;
+    tetrahedron_coord_transform.readData("tetrahedron.crd_trs");
+    TemplateDOF<3> tetrahedron_template_dof(tetrahedron_template_geometry);
+    /// 一次元
+    tetrahedron_template_dof.readData("tetrahedron.1.tmp_dof");
+    BasisFunctionAdmin<double, 3, 3> tetrahedron_basis_function(tetrahedron_template_dof);
+    tetrahedron_basis_function.readData("tetrahedron.1.bas_fun");
+    TemplateElement<double, 3, 3> template_element;
+    /// 模板单元初始化
+    template_element.reinit(tetrahedron_template_geometry,
+			    tetrahedron_template_dof,
+			    tetrahedron_coord_transform,
+			    tetrahedron_basis_function);
+    double volume = template_element.volume();
+    /// 取 4 次代数精度。
+    const QuadratureInfo<3>& quad_info = template_element.findQuadratureInfo(4);
+    /// 积分点个数
+    int n_quadrature_point = quad_info.n_quadraturePoint();
+    /// 积分点
+    std::vector< AFEPack::Point<3> > q_point = quad_info.quadraturePoint();
+    int n_dof = template_element.n_dof();
+    /// 基函数个数
+    int n_bas = template_element.basisFunction().size();
+    /// 观察一下模板单元中的自由度，基函数和基函数在具体积分点的取值情况，可从模板单元中读取到。
+    TemplateGeometry<3> &geo = template_element.geometry();
+    const std::vector<AFEPack::Point<3> > &lv = geo.vertexArray();
+    int n_vtx = lv.size();
+    /// 全局点
+    std::vector<AFEPack::Point<3> > gv(n_vtx);
+    /// x,y,z 方向的剖分段数。
+    int n = 20;
+    /// 自由度总数
+    int dim = (n + 1) * (n + 1) * (n + 1);
+    /// 右端项
+    Vector<double> rhs(dim);
+    /// 记得先储存边界自由度！！！！！！！！
     Store_BndDof(n);
+    /// 稀疏矩阵中非零元的个数，不知道最多多少个，但是不会超过 27 个。
+    std::vector<unsigned int> NoZeroPerRow(dim, 27);
+    /// 建立稀疏矩阵模板。
+    SparsityPattern sp_stiff_matrix(dim, NoZeroPerRow);
+    /// 填充非零元素对应的行索引和列索引，遍历顺序按照单元的顺序。
+    for (int k = 0; k < n; k++)
+	for (int j = 0; j < n; j++)
+	{
+	    for (int i = 0; i < 5 * n ; i++)
+	    {
+		for (int dof1 = 0; dof1 < n_dof; dof1++)
+		    for (int dof2 = 0; dof2 < n_dof; dof2++)
+		    {
+			sp_stiff_matrix.add(P1_ele3dof(n, k, j, i, dof1),
+					    P1_ele3dof(n, k, j, i, dof2));
+		    }
+	    }
+	}
+    
+    /// 稀疏矩阵模板生成。
+    sp_stiff_matrix.compress();
+    /// 刚度矩阵初始化。
+    SparseMatrix<double> stiff_mat(sp_stiff_matrix);
+    /// 生成节点，单元，刚度矩阵和右端项。
+    for (int k = 0; k < n; k++)
+	for (int j = 0; j < n; j++)
+	    for (int i = 0; i < 5 * n; i++)
+	    {
+		/// 实际单元顶点坐标。。
+		for (int m = 0; m < n_vtx; m++)
+		{
+		    gv[m] = P1_ele3vtx(n, k, j, i, m);
+		}
+		/// 积分
+		for (int l = 0; l < n_quadrature_point; l++)
+		{
+		    /// 积分点全局坐标。
+		    auto point = tetrahedron_coord_transform.local_to_global(q_point, lv, gv);
+		    /// 积分点权重，Jacobi变换系数。
+		    double Jxy = quad_info.weight(l) * tetrahedron_coord_transform.local_to_global_jacobian(q_point[l], lv, gv) * volume;
+
+		    for (int base1 = 0; base1 < n_dof; base1++)
+		    {
+			for (int base2 = 0; base2 < n_dof; base2++)
+			    stiff_mat.add(P1_ele3dof(n, k, j, i, base1),
+					  P1_ele3dof(n, k, j, i, base2),
+					  Jxy * innerProduct(tetrahedron_basis_function[base1].gradient(point[l], gv), tetrahedron_basis_function[base2].gradient(point[l], gv)));
+			/// 右端项
+			rhs(P1_ele3dof(n, k, j, i, base1)) += Jxy * f(point[l]) * tetrahedron_basis_function[base1].value(point[l], gv);
+		    }
+		}
+	    }
+     /// 处理边界条件
     for (int i = 0; i < BndDof.size(); i++)
     {
-	std::cout << BndDof[i] << " ";
+	int index = BndDof[i];
+	SparseMatrix<double>::iterator row_iterator = stiff_mat.begin(index);
+	SparseMatrix<double>::iterator row_end = stiff_mat.end(index);
+	double diag = row_iterator->value();
+	AFEPack::Point<3> bnd_point;
+	bnd_point = Dof_to_vtx(n, index);
+	double bnd_value = u(bnd_point);
+	rhs(index) = diag * bnd_value;
+	for (++row_iterator; row_iterator != row_end; ++row_iterator)
+	{
+	    row_iterator->value() = 0.0;
+	    int k = row_iterator->column();
+	    SparseMatrix<double>::iterator col_iterator = stiff_mat.begin(k);
+	    SparseMatrix<double>::iterator col_end = stiff_mat.end(k);
+	    for (++col_iterator; col_iterator != col_end; ++col_iterator)
+		if (col_iterator->column() == index)
+		    break;
+	    if (col_iterator == col_end)
+	    {
+		std::cerr << "Error!" << std::endl;
+		exit(-1);
+	    }
+	    rhs(k) -= col_iterator->value() * bnd_value;
+	    col_iterator->value() = 0.0;
+	}	
     }
+    /// 用代数多重网格 AMG 计算线性方程。
+    AMGSolver solver(stiff_mat);
+    /// 这里设置线性求解器的收敛判定为机器 epsilon 乘以矩阵的阶数，也就是自由度总数。这个参数基本上是理论可以达到的极限。
+    Vector<double> solution(dim);
+    double tol = std::numeric_limits<double>::epsilon() * dim;
+    solver.solve(solution, rhs, tol, 10000);
+    
     return 0;
 }
 	
