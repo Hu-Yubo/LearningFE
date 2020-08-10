@@ -44,12 +44,12 @@ std::vector<unsigned int> BndDof;
 
 double u(const double* p)
 {
-    return sin(PI * p[0]) * sin(PI * p[1]) * sin(PI * p[2]);
+    return sin(2 * PI * p[0]) * sin(2 * PI * p[1]) * sin(PI * p[2]);
 }
 
 double f(const double* p)
 {
-    return 3 * PI * PI * u(p);
+    return 9 * PI * PI * u(p);
 }
 
 /* 如何划分单元格？                     
@@ -365,6 +365,26 @@ int main(int argc, char* argv[])
     double tol = std::numeric_limits<double>::epsilon() * dim;
     solver.solve(solution, rhs, tol, 10000);
 
+    /// 输出 vtk 格式的结果，可以用 paraview 打开。
+    std::ofstream fs;
+    fs.open("possion.vtk");
+    fs << "# vtk DataFile Version 2.0\n";
+    fs << "VTK from Cpp\n";
+    fs << "ASCII\n";
+    fs << "DATASET STRUCTURED_GRID\n";
+    fs << "DIMENSIONS " << n+1 << " " << n+1 << " " << n+1 << std::endl;
+    fs << "POINTS " << dim << " float\n";
+    for (int i = 0; i < dim; i++)
+    {
+	AFEPack::Point<3> P = Dof_to_vtx(n, i);
+	fs << P[0] << " " << P[1] << " " << P[2] << std::endl;
+    }
+    fs << "\nPOINT_DATA " << dim;
+    fs << "\nSCALARS " << "Value" << " float\n";
+    fs << "LOOKUP_TABLE default\n";
+    for (int i = 0; i < dim; i++)
+	fs << solution[i] << std::endl;
+    
     /// 计算 L2 误差。
     double error = 0;
     for (int dof = 0; dof < dim; dof++)

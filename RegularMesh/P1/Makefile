@@ -21,5 +21,6 @@ clean :
 	-rm -f *.dx
 	-rm -f *.m
 	-rm -f *.o
+	-rm -f *.vtk
 
 .PHONY : default clean

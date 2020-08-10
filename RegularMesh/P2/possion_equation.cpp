@@ -206,7 +206,7 @@ int main(int argc, char* argv[])
     /// 全局点
     std::vector<AFEPack::Point<2> > gv(n_vtx);
     /// 设置剖分段数。
-    int n = 50;
+    int n = 20;
     /// 自由度总数
     int dim = (2 * n + 1) * (2 * n + 1);
     /// 右端项

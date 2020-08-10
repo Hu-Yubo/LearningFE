@@ -177,7 +177,7 @@ int main(int argc, char* argv[])
     const std::vector<AFEPack::Point<2> > &lv = geo.vertexArray();
     int n_vtx = geo.n_geometry(0);
     /// 设置剖分段数。
-    int n = 50;
+    int n = 10;
     /// 自由度总数
     int dim = (n + 1) * (n + 1);
     /// rhs是右端项
@@ -279,6 +279,7 @@ int main(int argc, char* argv[])
     double tol = std::numeric_limits<double>::epsilon() * dim;
     solver.solve(solution, rhs, tol, 10000);
     std::ofstream fs;
+    /*
     /// 输出到 output.m
     fs.open("output.m");
     fs << "x = " << xa << ":" << xb - xa << "/" << n << ":" << xb << ";" << std::endl;
@@ -295,6 +296,28 @@ int main(int argc, char* argv[])
     }
     fs << "];" << std::endl;
     fs << "surf(X, Y, u);" << std::endl;
+    */
+    fs.open("possion.vtk");
+    fs << "# vtk DataFile Version 2.0\n";
+    fs << "VTK from Cpp\n";
+    fs << "ASCII\n";
+    fs << "DATASET POLYDATA\n";
+    fs << "POINTS " << dim << " float\n";
+    for (int i = 0; i < dim; i++)
+    {
+	AFEPack::Point<2> P = Dof_to_vtx(n, i);
+	fs << std::fixed << std::setprecision(2) << P[0] << " " << P[1] << " " << solution[i] << std::endl;
+    }
+    fs << std::endl;
+    fs << "POLYGONS " << n * n << " " << n * n * 5 << std::endl;
+    for (int j = 0; j < n; j++)
+	for (int i = 0; i < n; i++)
+	{
+	    fs << 4;
+	    for (int k = 0; k < 4; k++)
+		fs << " " << Q1_ele2dof(n, j, i, k);
+	    fs << std::endl;
+	}  
 
      /// 计算 L2 误差。
     double error = 0;
