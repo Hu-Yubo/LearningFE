@@ -229,7 +229,7 @@ int main(int argc, char* argv[])
     const std::vector<AFEPack::Point<2> > &lv = geo.vertexArray();
     int n_vtx = geo.n_geometry(0);
     /// 设置剖分段数。
-    int n = 10;
+    int n = 50;
     /// 自由度总数
     int dim = (n + 1) * (n + 1);
     /// 右端项
@@ -361,23 +361,20 @@ int main(int argc, char* argv[])
     fs << "# vtk DataFile Version 2.0\n";
     fs << "VTK from Cpp\n";
     fs << "ASCII\n";
-    fs << "DATASET POLYDATA\n";
-    fs << "POINTS " << dim << " float\n";
+    fs << "DATASET STRUCTURED_GRID\n";
+    fs << "DIMENSIONS " << n+1 << " " << n+1 << " " << 1;
+    fs << "\nPOINTS " << dim << " float\n";
     for (int i = 0; i < dim; i++)
     {
 	AFEPack::Point<2> P = Dof_to_vtx(n, i);
 	fs << std::fixed << std::setprecision(2) << P[0] << " " << P[1] << " " << solution[i] << std::endl;
     }
     fs << std::endl;
-    fs << "POLYGONS " << n * n * 2 << " " << n * n * 8 << std::endl;
-    for (int j = 0; j < n; j++)
-	for (int i = 0; i < 2 * n; i++)
-	{
-	    fs << 3;
-	    for (int k = 0; k < 3; k++)
-		fs << " " << P1_ele2dof(n, j, i, k);
-	    fs << std::endl;
-	}
+    fs << "POINT_DATA " << dim << std::endl;
+    fs << "SCALARS Value float\n";
+    fs << "LOOKUP_TABLE default\n";
+    for (int j = 0; j < dim; j++)
+	fs << solution[j] << std::endl;
 
     /// 计算 L2 误差。
     double error = 0;
